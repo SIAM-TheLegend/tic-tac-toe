@@ -74,7 +74,7 @@
             user-select: none;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
             
-            /* FIX: Ensure cell height matches cell width for a perfect square */
+            /* Ensure cell height matches cell width for a perfect square */
             aspect-ratio: 1 / 1;
             line-height: 1;
         }
@@ -84,11 +84,11 @@
         }
 
         .cell.x {
-            color: #e56b6f; /* Reddish tone for X */
+            color: #e56b6f; /* Reddish tone for X (Human) */
         }
 
         .cell.o {
-            color: #43aa8b; /* Greenish tone for O */
+            color: #43aa8b; /* Greenish tone for O (Computer) */
         }
 
         .cell.win {
@@ -155,12 +155,12 @@
         }
     </style>
 </head>
-<body style="scale: 0.8;">
+<body style="scale: 0.75;">
 
     <div class="game-container">
-        <h1>Tic-Tac-Toe Challenge</h1>
+        <h1>Tic-Tac-Toe Challenge (vs. AI)</h1>
 
-        <div class="status" id="game-status">Player X's turn</div>
+        <div class="status" id="game-status">Your turn (Player X)</div>
 
         <div class="board" id="game-board" data-game-active="true">
             <!-- Cells will be generated here by JavaScript -->
@@ -175,17 +175,16 @@
         const statusDisplay = document.getElementById('game-status');
         const boardSize = 3;
 
+        // Define players
+        const humanPlayer = 'X';
+        const computerPlayer = 'O';
+        
+        // Game State
         let gameBoard = Array(boardSize * boardSize).fill(null);
-        let currentPlayer = 'X';
+        let currentPlayer = humanPlayer; // X always starts
         let gameActive = true;
 
-        // --- Utility Functions ---
-
-        /**
-         * Converts base64 encoded PCM audio data to an ArrayBuffer.
-         * Note: This function is required for playing TTS audio from the Gemini API,
-         * but is included here as a general utility template.
-         */
+        // --- Utility Functions (kept for completeness, though not used in game logic) ---
         function base64ToArrayBuffer(base64) {
             const binaryString = atob(base64);
             const len = binaryString.length;
@@ -211,52 +210,152 @@
                 board.appendChild(cell);
                 cells.push(cell);
             }
-            updateStatus(`Player ${currentPlayer}'s turn`);
+            updateStatus(`Your turn (Player ${currentPlayer})`);
         }
 
-        // --- Game Logic ---
+        // --- Core Game Logic ---
 
         /**
-         * Handles a cell click event.
-         * @param {number} clickedCellIndex - The index of the cell that was clicked.
+         * The only function that applies a move to the board and checks for game end.
+         * @param {number} index - The index of the cell to play.
          */
-        function handleCellClick(clickedCellIndex) {
-            // If the cell is already occupied or the game is not active, ignore the click
-            if (gameBoard[clickedCellIndex] !== null || !gameActive) {
-                return;
-            }
-
-            // Update the game state and DOM
-            gameBoard[clickedCellIndex] = currentPlayer;
-            const clickedCell = cells[clickedCellIndex];
+        function applyMove(index) {
+            gameBoard[index] = currentPlayer;
+            const clickedCell = cells[index];
             clickedCell.innerHTML = currentPlayer;
             clickedCell.classList.add(currentPlayer.toLowerCase());
             clickedCell.setAttribute('data-filled', 'true');
 
-            // Check for game end conditions
             if (checkWinner()) {
                 endGame(false);
             } else if (isDraw()) {
                 endGame(true);
             } else {
                 // Switch players
-                currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-                updateStatus(`Player ${currentPlayer}'s turn`);
+                currentPlayer = currentPlayer === humanPlayer ? computerPlayer : humanPlayer;
+                const statusMessage = currentPlayer === humanPlayer ? "Your turn (Player X)" : "Computer is thinking...";
+                updateStatus(statusMessage);
             }
         }
 
         /**
-         * Checks if the current player has won the game.
+         * Handles the human player's cell click event.
+         * @param {number} clickedCellIndex - The index of the cell that was clicked.
+         */
+        function handleCellClick(clickedCellIndex) {
+            // Only allow move if game is active, cell is empty, and it is the human's turn
+            if (!gameActive || gameBoard[clickedCellIndex] !== null || currentPlayer !== humanPlayer) {
+                return;
+            }
+
+            // 1. Human Player (X) makes a move
+            applyMove(clickedCellIndex);
+
+            // 2. If game is still active, trigger the computer move after a slight delay
+            if (gameActive) {
+                updateStatus("Computer is thinking...");
+                // Add a small delay for better user experience
+                setTimeout(computerMove, 700); 
+            }
+        }
+
+
+        // --- AI Logic ---
+
+        /**
+         * Checks if a player can win or needs to be blocked at any spot.
+         * @param {string} player - The player ('X' or 'O') to check for opportunities.
+         * @returns {number} The index of the winning/blocking move, or -1 if none found.
+         */
+        function checkWinOpportunity(player) {
+            const winningConditions = [
+                [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+                [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+                [0, 4, 8], [2, 4, 6]            // Diagonals
+            ];
+
+            for (const condition of winningConditions) {
+                let count = 0;
+                let emptyIndex = -1;
+
+                for (const index of condition) {
+                    if (gameBoard[index] === player) {
+                        count++;
+                    } else if (gameBoard[index] === null) {
+                        emptyIndex = index;
+                    }
+                }
+
+                // If player has 2 in a row and the 3rd is empty, return the empty index
+                if (count === 2 && emptyIndex !== -1) {
+                    return emptyIndex;
+                }
+            }
+            return -1; 
+        }
+
+        /**
+         * The computer's move logic (simple strategy).
+         */
+        function computerMove() {
+            if (!gameActive) return;
+            
+            // The currentPlayer should now be 'O' after the applyMove in handleCellClick
+            if (currentPlayer !== computerPlayer) return;
+
+            let move = -1;
+
+            // 1. Check for immediate win (Offensive)
+            move = checkWinOpportunity(computerPlayer);
+            if (move !== -1) {
+                applyMove(move);
+                return;
+            }
+
+            // 2. Check for immediate block (Defensive)
+            move = checkWinOpportunity(humanPlayer);
+            if (move !== -1) {
+                applyMove(move);
+                return;
+            }
+
+            // 3. Take the center (index 4)
+            if (gameBoard[4] === null) {
+                applyMove(4);
+                return;
+            }
+
+            // 4. Take an open corner (indices 0, 2, 6, 8)
+            const corners = [0, 2, 6, 8];
+            for (const index of corners) {
+                if (gameBoard[index] === null) {
+                    applyMove(index);
+                    return;
+                }
+            }
+
+            // 5. Take any open spot (fallback random move)
+            const availableMoves = gameBoard
+                .map((val, idx) => val === null ? idx : null)
+                .filter(val => val !== null);
+                
+            if (availableMoves.length > 0) {
+                const randomIndex = availableMoves[Math.floor(Math.random() * availableMoves.length)];
+                applyMove(randomIndex);
+            }
+        }
+
+
+        // --- Game Flow and Status ---
+
+        /**
+         * Checks if a winner exists based on the current gameBoard state.
          * @returns {boolean} True if a winner is found.
          */
         function checkWinner() {
-            // Define winning conditions (rows, columns, diagonals)
             const winningConditions = [
-                // Rows
                 [0, 1, 2], [3, 4, 5], [6, 7, 8],
-                // Columns
                 [0, 3, 6], [1, 4, 7], [2, 5, 8],
-                // Diagonals
                 [0, 4, 8], [2, 4, 6]
             ];
 
@@ -274,11 +373,10 @@
         }
 
         /**
-         * Checks if the game is a draw (all cells filled and no winner).
+         * Checks if the game is a draw.
          * @returns {boolean} True if the game is a draw.
          */
         function isDraw() {
-            // Check if every element in the board array is not null
             return gameBoard.every(cell => cell !== null);
         }
 
@@ -299,11 +397,12 @@
             board.setAttribute('data-game-active', 'false');
 
             if (isDrawGame) {
-                updateStatus(`Game over! It's a Draw!`);
+                updateStatus(`Game over! It's a Draw! 🤝`);
                 statusDisplay.style.color = '#777777';
             } else {
-                updateStatus(`Player ${currentPlayer} Wins! 🎉`);
-                statusDisplay.style.color = currentPlayer === 'X' ? '#e56b6f' : '#43aa8b';
+                const winnerText = currentPlayer === humanPlayer ? "You Win! 🎉" : "Computer Wins! 🤖";
+                updateStatus(winnerText);
+                statusDisplay.style.color = currentPlayer === humanPlayer ? '#e56b6f' : '#43aa8b';
             }
         }
 
@@ -312,7 +411,7 @@
          */
         function resetGame() {
             gameBoard = Array(boardSize * boardSize).fill(null);
-            currentPlayer = 'X';
+            currentPlayer = humanPlayer; // X always starts
             gameActive = true;
             board.setAttribute('data-game-active', 'true');
             statusDisplay.style.color = '#6d597a'; // Reset color
@@ -324,7 +423,7 @@
                 cell.setAttribute('data-filled', 'false');
             });
 
-            updateStatus(`Player ${currentPlayer}'s turn`);
+            updateStatus(`Your turn (Player ${currentPlayer})`);
         }
 
         // Run the initialization when the page loads
