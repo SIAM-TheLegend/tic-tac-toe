@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* Basic Reset and Font */
+        body {
+            font-family: 'Fredoka', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #f0f4f8, #c8d3e6);
+            color: #333;
+            padding: 20px;
+        }
+
+        /* Game Container Styling */
+        .game-container {
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            padding: 30px;
+            text-align: center;
+            max-width: 90vw;
+        }
+
+        h1 {
+            color: #4a4e69;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Status Display */
+        .status {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            font-weight: 700;
+            color: #6d597a;
+            min-height: 1.5rem; /* Prevent layout shift */
+        }
+
+        /* Game Board Grid */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 10px;
+            width: 300px;
+            height: 300px;
+            margin: 0 auto;
+            background-color: #b8c4d7;
+            border-radius: 10px;
+            padding: 10px;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Individual Cell Styling */
+        .cell {
+            background-color: #f7f9fb;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.2s; 
+            user-select: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
+            
+            /* FIX: Ensure cell height matches cell width for a perfect square */
+            aspect-ratio: 1 / 1;
+            line-height: 1;
+        }
+
+        .cell:hover {
+            background-color: #e0e6ed;
+        }
+
+        .cell.x {
+            color: #e56b6f; /* Reddish tone for X */
+        }
+
+        .cell.o {
+            color: #43aa8b; /* Greenish tone for O */
+        }
+
+        .cell.win {
+            background-color: #fff3b0; /* Highlight winning cells */
+            animation: win-pulse 0.5s infinite alternate;
+        }
+
+        /* Animation for Win Highlight */
+        @keyframes win-pulse {
+            from { opacity: 1; box-shadow: 0 0 15px #f9c74f; }
+            to { opacity: 0.9; box-shadow: 0 0 20px #f9c74f; }
+        }
+
+        /* Disabled cursor state when game is over or cell is filled */
+        .cell[data-filled="true"], .board[data-game-active="false"] .cell {
+            cursor: default;
+        }
+        
+        /* Ensure cells do not hover-highlight when game is inactive */
+        .board[data-game-active="false"] .cell:hover {
+            background-color: #f7f9fb;
+        }
+
+        /* Reset Button Styling */
+        .reset-button {
+            margin-top: 25px;
+            padding: 12px 25px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            border: none;
+            border-radius: 30px;
+            background-color: #7209b7; /* Purple */
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s;
+            box-shadow: 0 5px 15px rgba(114, 9, 183, 0.3);
+        }
+
+        .reset-button:hover {
+            background-color: #5d0794;
+            transform: translateY(-2px);
+        }
+
+        .reset-button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 10px rgba(114, 9, 183, 0.4);
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 400px) {
+            .board {
+                width: 90vw; /* Use viewport width */
+                height: 90vw;
+            }
+            .cell {
+                font-size: 3rem;
+            }
+            h1 {
+                font-size: 2rem;
+            }
+            .status {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <h1>Tic-Tac-Toe Challenge</h1>
+
+        <div class="status" id="game-status">Player X's turn</div>
+
+        <div class="board" id="game-board" data-game-active="true">
+            <!-- Cells will be generated here by JavaScript -->
+        </div>
+
+        <button class="reset-button" onclick="resetGame()">New Game</button>
+    </div>
+
+    <script>
+        const cells = []; // Array to hold cell DOM elements
+        const board = document.getElementById('game-board');
+        const statusDisplay = document.getElementById('game-status');
+        const boardSize = 3;
+
+        let gameBoard = Array(boardSize * boardSize).fill(null);
+        let currentPlayer = 'X';
+        let gameActive = true;
+
+        // --- Utility Functions ---
+
+        /**
+         * Converts base64 encoded PCM audio data to an ArrayBuffer.
+         * Note: This function is required for playing TTS audio from the Gemini API,
+         * but is included here as a general utility template.
+         */
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        // --- Game Setup ---
+
+        /**
+         * Initializes the game board structure in the DOM.
+         */
+        function initializeBoard() {
+            for (let i = 0; i < gameBoard.length; i++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.setAttribute('data-cell-index', i);
+                cell.setAttribute('data-filled', 'false');
+                cell.addEventListener('click', () => handleCellClick(i));
+                board.appendChild(cell);
+                cells.push(cell);
+            }
+            updateStatus(`Player ${currentPlayer}'s turn`);
+        }
+
+        // --- Game Logic ---
+
+        /**
+         * Handles a cell click event.
+         * @param {number} clickedCellIndex - The index of the cell that was clicked.
+         */
+        function handleCellClick(clickedCellIndex) {
+            // If the cell is already occupied or the game is not active, ignore the click
+            if (gameBoard[clickedCellIndex] !== null || !gameActive) {
+                return;
+            }
+
+            // Update the game state and DOM
+            gameBoard[clickedCellIndex] = currentPlayer;
+            const clickedCell = cells[clickedCellIndex];
+            clickedCell.innerHTML = currentPlayer;
+            clickedCell.classList.add(currentPlayer.toLowerCase());
+            clickedCell.setAttribute('data-filled', 'true');
+
+            // Check for game end conditions
+            if (checkWinner()) {
+                endGame(false);
+            } else if (isDraw()) {
+                endGame(true);
+            } else {
+                // Switch players
+                currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+                updateStatus(`Player ${currentPlayer}'s turn`);
+            }
+        }
+
+        /**
+         * Checks if the current player has won the game.
+         * @returns {boolean} True if a winner is found.
+         */
+        function checkWinner() {
+            // Define winning conditions (rows, columns, diagonals)
+            const winningConditions = [
+                // Rows
+                [0, 1, 2], [3, 4, 5], [6, 7, 8],
+                // Columns
+                [0, 3, 6], [1, 4, 7], [2, 5, 8],
+                // Diagonals
+                [0, 4, 8], [2, 4, 6]
+            ];
+
+            for (let i = 0; i < winningConditions.length; i++) {
+                const [a, b, c] = winningConditions[i];
+                if (gameBoard[a] && gameBoard[a] === gameBoard[b] && gameBoard[a] === gameBoard[c]) {
+                    // Highlight the winning cells
+                    cells[a].classList.add('win');
+                    cells[b].classList.add('win');
+                    cells[c].classList.add('win');
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Checks if the game is a draw (all cells filled and no winner).
+         * @returns {boolean} True if the game is a draw.
+         */
+        function isDraw() {
+            // Check if every element in the board array is not null
+            return gameBoard.every(cell => cell !== null);
+        }
+
+        /**
+         * Updates the game status display text.
+         * @param {string} message - The message to display.
+         */
+        function updateStatus(message) {
+            statusDisplay.innerHTML = message;
+        }
+
+        /**
+         * Ends the current game.
+         * @param {boolean} isDrawGame - True if the game ended in a draw.
+         */
+        function endGame(isDrawGame) {
+            gameActive = false;
+            board.setAttribute('data-game-active', 'false');
+
+            if (isDrawGame) {
+                updateStatus(`Game over! It's a Draw!`);
+                statusDisplay.style.color = '#777777';
+            } else {
+                updateStatus(`Player ${currentPlayer} Wins! 🎉`);
+                statusDisplay.style.color = currentPlayer === 'X' ? '#e56b6f' : '#43aa8b';
+            }
+        }
+
+        /**
+         * Resets the game state and the board UI.
+         */
+        function resetGame() {
+            gameBoard = Array(boardSize * boardSize).fill(null);
+            currentPlayer = 'X';
+            gameActive = true;
+            board.setAttribute('data-game-active', 'true');
+            statusDisplay.style.color = '#6d597a'; // Reset color
+
+            // Clear the cell contents and classes
+            cells.forEach(cell => {
+                cell.innerHTML = '';
+                cell.classList.remove('x', 'o', 'win');
+                cell.setAttribute('data-filled', 'false');
+            });
+
+            updateStatus(`Player ${currentPlayer}'s turn`);
+        }
+
+        // Run the initialization when the page loads
+        window.onload = initializeBoard;
+
+    </script>
+</body>
+</html>
